@@ -1,4 +1,0 @@
-# TODO: basket could probably found more robustly with template matching as it doesn't rotate
-# TODO: basket is found as (x, y) instead of (y, x)
-# TODO: zero out everything except game area, clean up that code
-# TODO: tweak circle Hough transform parameters to find ball more robustly

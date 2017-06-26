@@ -3,23 +3,70 @@ import numpy as np
 from pymouse import PyMouse
 from time import sleep
 
+# TODO: reduce shot angle when the basket is near the edges
+# TODO: find the mathematical model
+# TODO: this function should take y difference into account
+def shot_vector(mouse_start, mouse_end):
+  mend = mouse_end - mouse_start
+  
+  mend[0] *= 0.7
+
+  return mend
+
 def perform_mouse_drag(mouse_start, mouse_end):
   m = PyMouse()
   
   m_x, m_y = mouse_start
-  m_end_x, m_end_y = (mouse_end - mouse_start) / 2 + mouse_start
+  m_end_x, m_end_y = mouse_start + shot_vector(mouse_start, mouse_end)
   
   # focus browser
   m.click(m_x, m_y)
   
-  #m.drag(m_x, m_y, m_end_x, m_end_y)
-  print 'Dragging', m_x, m_y, m_end_x, m_end_y
   m.press(m_x, m_y)
-  sleep(0.05)
+  sleep(0.1)
   m.release(m_end_x, m_end_y)
+
+# http://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_imgproc/py_houghcircles/py_houghcircles.html
+def find_ball(img_screen, img_dbg = None):
+  img_screen_bin = cv2.cvtColor(img_screen, cv2.COLOR_RGB2GRAY)
+  # TODO: tweak parameters
+  circles = cv2.HoughCircles(img_screen_bin, cv2.HOUGH_GRADIENT, 2, 500, minRadius = 20, maxRadius = 200)
+  if circles is None:
+    print "Couldn't find circles"
+    return None
+    
+  circles = np.uint16(np.around(circles))
+  # no idea why this needs to be done
+  circles = circles[0] 
+
+  for i in circles:
+      # draw the outer circle
+      cv2.circle(img_dbg, (i[0], i[1]), i[2], (0, 255, 0), 2)
+      # draw the center of the circle
+      cv2.circle(img_dbg, (i[0], i[1]), 2, (0, 0, 255), 3)
   
-  sleep(0.05)
-  m.move(1500, 800)
+  # if there are many found circles, sort descending according to circle radius and use the biggest one
+  if len(circles) > 1:
+    print "Found many circles, this shouldn't happen"
+    circles.sort(key=lambda circle: circle[2])
+
+  return circles[0][:-1]
+
+# http://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_imgproc/py_template_matching/py_template_matching.html
+img_basket = cv2.imread('basket.png')
+def find_basket(img_screen, img_dbg = None):
+  method = cv2.TM_CCOEFF_NORMED
+  res = cv2.matchTemplate(img_screen, img_basket, method)
+  min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)
+
+  h, w, _ = img_basket.shape
+  top_left = np.array(max_loc)
+  bottom_right = np.array((top_left[0] + w, top_left[1] + h))
+
+  if img_dbg is not None:
+    cv2.rectangle(img_dbg, tuple(top_left), tuple(bottom_right), 255, 2)
+  
+  return (top_left + bottom_right) / 2
 
 """
 screengrab.py
@@ -130,82 +177,3 @@ class Screengrab:
         return PilImage
 
 
-
-# http://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_imgproc/py_houghcircles/py_houghcircles.html
-def find_ball(img_screen, img_dbg = None):
-  img_screen_bin = cv2.cvtColor(img_screen, cv2.COLOR_RGB2GRAY)
-  # TODO: tweak parameters
-  circles = cv2.HoughCircles(img_screen_bin, cv2.HOUGH_GRADIENT, 2, 500, minRadius = 10, maxRadius = 100)
-  if circles is None:
-    print "Couldn't find circles"
-    return None
-    
-  circles = np.uint16(np.around(circles))
-
-  for i in circles[0,:]:
-      # draw the outer circle
-      cv2.circle(img_dbg, (i[0], i[1]), i[2], (0, 255, 0), 2)
-      # draw the center of the circle
-      cv2.circle(img_dbg, (i[0], i[1]), 2, (0, 0, 255), 3)
-  
-  if len(circles) > 1 or circles is None:
-    print "Found many circles, this shouldn't happen"
-
-  return circles[0][0][:-1]
-
-# TODO: this should be done using template matching and not feature matching
-img_basket = cv2.imread('basket.png')
-def find_basket(img_screen, img_dbg = None):
-  pts_object = find_object_points(img_basket, img_screen)
-
-  object_center = np.int32(np.average(pts_object, axis = 0))
-  if img_dbg is not None:
-    cv2.circle(img_dbg, (object_center[0], object_center[1]), radius = 2, color = (0, 255, 0), thickness = 2)
-  return object_center
-
-# http://docs.opencv.org/trunk/dc/dc3/tutorial_py_matcher.html
-def find_object_points(img1, img2, thresh = 0.9):
-
-  # Initiate ORB detector
-#  det = cv2.ORB_create()
-  det = cv2.BRISK_create()
-
-  # find the keypoints and descriptors 
-  kp1, des1 = det.detectAndCompute(img1, None)
-  kp2, des2 = det.detectAndCompute(img2, None)
-  
-  crossCheck = False
-      
-  # FLANN parameters for ORB and BRISK
-  FLANN_INDEX_LSH = 6
-  index_params= dict(algorithm = FLANN_INDEX_LSH, table_number = 12, key_size = 15, multi_probe_level = 2) 
-  search_params = dict(checks=10000)   # or pass empty dictionary
-  matcher = cv2.FlannBasedMatcher(index_params, search_params)
-  
-
-  # Match descriptors.
-  matches = []
-  good = []
-  # Need to draw only good matches, so create a mask
-  matchesMask = []
-  if crossCheck:
-    matches = matcher.match(des1, des2)
-    good = matches
-  else:
-    matches = matcher.knnMatch(des1, des2, k = 2)
-    matchesMask = [[0,0] for i in xrange(len(matches))]
-    # ratio test as per Lowe's paper
-    for i, (m, n) in enumerate(matches):
-      if m.distance < thresh * n.distance:
-        matchesMask[i] = [1,0]
-        good.append(m)
-  
-    
-  if len(good) < 10:
-    return None
-      
-  # http://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_feature2d/py_feature_homography/py_feature_homography.html        
-  pts_src = np.float32([ kp1[m.queryIdx].pt for m in good ]).reshape(-1,2)
-  pts_dst = np.float32([ kp2[m.trainIdx].pt for m in good ]).reshape(-1,2)
-    
-  return pts_dst
