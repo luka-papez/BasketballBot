@@ -21,7 +21,6 @@ def perform_mouse_drag(mouse_start, mouse_end):
   sleep(0.05)
   m.move(1500, 800)
 
-# encoding: utf-8
 """
 screengrab.py
 
@@ -31,33 +30,105 @@ Copyright (c) 2011 CodeTeam. All rights reserved.
 import sys
 import os
 import Image
-from PyQt4.QtGui import QPixmap, QApplication
-from PyQt4.Qt import QBuffer, QIODevice
-import StringIO
-class screengrab:
+
+# https://stackoverflow.com/questions/69645/take-a-screenshot-via-a-python-script-linux
+class Screengrab:
     def __init__(self):
+        imported = False
         
-        try:
-            import PyQt4
-        except ImportError:
-            pass
+        if not imported:            
+          try:
+              import PyQt4
+          except ImportError:
+              pass
+          else:
+              self.screen_ = self.getScreenByQt
+              imported = True
+        
+        if not imported:
+          try:
+              import gtk
+          except ImportError:
+              pass
+          else:
+              self.screen_ = self.getScreenByGtk
+              imported = True
+            
+        if not imported:
+          try:
+              import wx
+          except ImportError:
+              pass
+          else:
+              self.screen_ = self.getScreenByWx
+              imported = True
+            
+        if not imported:
+          try:
+              import ImageGrab
+          except ImportError:
+              pass
+          else:
+              self.screen_ = self.getScreenByPIL
+              imported = True
+            
+        if not imported:
+          print 'Cannot take screenshot on this computer'
+          self.screen = None
+        else:    
+          # wrapper to return the image as OpenCV / numpy array
+          self.screen = lambda: cv2.cvtColor(np.array(self.screen_()), cv2.COLOR_RGB2BGR)
+
+
+    def getScreenByGtk(self):
+        import gtk.gdk      
+        w = gtk.gdk.get_default_root_window()
+        sz = w.get_size()
+        pb = gtk.gdk.Pixbuf(gtk.gdk.COLORSPACE_RGB,False,8,sz[0],sz[1])
+        pb = pb.get_from_drawable(w,w.get_colormap(),0,0,0,0,sz[0],sz[1])
+        if (pb != None):
+            return False
         else:
-            self.screen_ = self.getScreenByQt
-        
-        # wrapper to return the image as OpenCV
-        self.screen = lambda: cv2.cvtColor(np.array(self.screen_()), cv2.COLOR_RGB2BGR)
-        # app should be created only once
-        self.app = QApplication(sys.argv)
-        
+            width,height = pb.get_width(),pb.get_height()
+            return Image.fromstring("RGB",(width,height),pb.get_pixels() )
+    
+    qtAppInstance = None
     def getScreenByQt(self):
-        buff = QBuffer()
-        buff.open(QIODevice.ReadWrite)
-        QPixmap.grabWindow(QApplication.desktop().winId()).save(buff, 'png')
+        from PyQt4.QtGui import QPixmap, QApplication
+        from PyQt4.Qt import QBuffer, QIODevice
+        import StringIO
+        # there should only ever be a single instance of QApplication or else it crashes on some platforms
+        if Screengrab.qtAppInstance is None:
+          Screengrab.qtAppInstance = QApplication(sys.argv)
+        buffer = QBuffer()
+        buffer.open(QIODevice.ReadWrite)
+        QPixmap.grabWindow(QApplication.desktop().winId()).save(buffer, 'png')
         strio = StringIO.StringIO()
-        strio.write(buff.data())
-        buff.close()
+        strio.write(buffer.data())
+        buffer.close()
         strio.seek(0)
         return Image.open(strio)
+
+    def getScreenByPIL(self):
+        import ImageGrab
+        img = ImageGrab.grab()
+        return img
+
+    def getScreenByWx(self):
+        import wx
+        wx.App()  # Need to create an App instance before doing anything
+        screen = wx.ScreenDC()
+        size = screen.GetSize()
+        bmp = wx.EmptyBitmap(size[0], size[1])
+        mem = wx.MemoryDC(bmp)
+        mem.Blit(0, 0, size[0], size[1], screen, 0, 0)
+        del mem  # Release bitmap
+        #bmp.SaveFile('screenshot.png', wx.BITMAP_TYPE_PNG)
+        myWxImage = wx.ImageFromBitmap( myBitmap )
+        PilImage = Image.new( 'RGB', (myWxImage.GetWidth(), myWxImage.GetHeight()) )
+        PilImage.fromstring( myWxImage.GetData() )
+        return PilImage
+
 
 
 # http://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_imgproc/py_houghcircles/py_houghcircles.html

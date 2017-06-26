@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-from functions import screengrab, find_basket, find_ball, perform_mouse_drag
+from functions import Screengrab, find_basket, find_ball, perform_mouse_drag
 from time import sleep
 
 # TODO: basket could probably found more robustly with template matching as it doesn't rotate
@@ -9,7 +9,7 @@ from time import sleep
 
 from pymouse import PyMouse
 
-s = screengrab()
+s = Screengrab()
 if __name__ == '__main__':
   # repeat until victory
 
@@ -25,7 +25,9 @@ if __name__ == '__main__':
     
     # localize the basket coordinates using template matching
     sleep(2) # TODO sleeping because poor basket localization performance when net is moving
-    basket_center = find_basket(img_screen, img_dbg)
+    basket_center = None
+    while basket_center is None:
+      basket_center = find_basket(img_screen, img_dbg)
     print 'Found basket'
     
     m = PyMouse()
