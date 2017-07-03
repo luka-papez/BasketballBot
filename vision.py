@@ -4,24 +4,29 @@ import numpy as np
 """ Local TODOs """
 # TODO: duration of imports when imported locally? (eg. in function)
   
+def find_game_area_shift(img_screen):
+  # TODO: find the biggest rectangle after edge detection?
+  # TODO: invent Hough rectangle transform to find the rectangle with specified aspect ratio?
+  return np.int32((0, 0))
+
 def missed_shot(img_screen):
   """
-    Returns True if it's determined that the shot is missed (there is a play again button on screen for example)
+    Returns True if it's determined that the shot was missed (e.g. there is a play again button on screen)
   """
+  # TODO: template match to the button
   return False
 
 def crop_game_area(img_screen):
   """ 
-    Crops the screenshot to leave only the game area and returns the shift from previous
-    top left corner to the current left corner such that:
-      point_on_screen = point_in_cropped_image + shift
+    Crops the screenshot to leave only the game area.
     
     @param img_screen
-    @return (cropped_img_screen, shift)
+    @return cropped_img_screen
   """
-  # TODO: this function is far from finished
-  return img_screen, np.array([0, 0])
+  # TODO: this function is far from finished, should use find_game_area_shift
+  return img_screen
 
+# TODO: remove img_dbg
 def find_ball(img_screen, img_dbg = None):
   """
     Finds the ball center coordinates using Hough circle transform.
@@ -34,27 +39,26 @@ def find_ball(img_screen, img_dbg = None):
     @return ball_center center of the ball as [y, x]
   """
   img_screen_bin = cv2.cvtColor(img_screen, cv2.COLOR_RGB2GRAY)
+  # TODO: performing edge detection could remove a lot of unnecessary information and make circle detection more robust
+  
   # TODO: tweak parameters to be more robust
   circles = cv2.HoughCircles(img_screen_bin, cv2.HOUGH_GRADIENT, 2, 500, minRadius = 20, maxRadius = 200)
   if circles is None:
     print "Couldn't find circles"
     return None
     
+  # TODO: use int32?
   circles = np.uint16(np.around(circles))
   # TODO: no idea why OpenCV returns the results in this useless format, but this must be done
   circles = circles[0] 
-
-  if img_dbg is not None:
-    for i in circles:
-        # draw the outer circle
-        cv2.circle(img_dbg, (i[0], i[1]), i[2], (0, 255, 0), 2)
-        # draw the center of the circle
-        cv2.circle(img_dbg, (i[0], i[1]), 2, (0, 0, 255), 3)
   
   # if many circles are found, sort descending according to circle radius and use the biggest one
   if len(circles) > 1:
     print "Found many circles, this shouldn't happen. Using the biggest one."
+    # TODO: ugly
+    circles = list(circles)
     circles.sort(key=lambda circle: circle[2])
+    circles = np.int32(circles)
 
   # TODO: this function should return the coordinates as (y, x) instead of (x, y)
   return circles[0][:-1]
@@ -73,7 +77,6 @@ def find_basket(img_screen, img_dbg = None):
   res = cv2.matchTemplate(img_screen, img_basket, method)
   min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)
 
-  # TODO: basket is found as (x, y) instead of (y, x)
   h, w, _ = img_basket.shape
   top_left = np.array(max_loc)
   bottom_right = np.array((top_left[0] + w, top_left[1] + h))

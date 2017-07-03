@@ -2,20 +2,20 @@ import sys
 import os
 import Image
 import cv2
-import np
+import numpy as np
 
 """ Local TODOs """
 # TODO: duration of imports when imported locally? (eg. in function)
 # TODO: further refactor __init__
 
 class Screenshot:
-  """
-    Basic idea taken from https://stackoverflow.com/questions/69645/take-a-screenshot-via-a-python-script-linux
-    Modifications made:
-      1) Changed design to return the screenshot as OpenCV / numpy array instead of PIL image format.
-      2) Rewrote the horribly designed constructor (__init__)
-      3) Fixed the problem with segmentation faults if using Qt to take screenshots.
-  """
+    """
+      Basic idea taken from https://stackoverflow.com/questions/69645/take-a-screenshot-via-a-python-script-linux
+      Modifications made:
+        1) Changed design to return the screenshot as OpenCV / numpy array instead of PIL image format.
+        2) Rewrote the horribly designed constructor (__init__)
+        3) Fixed the problem with segmentation faults if using Qt to take screenshots.
+    """
     def __init__(self):
         # TODO: make a dict containing (libray, function) pairs and use eval() function to import the correct one
         # TODO: duration of imports when imported locally? (eg. in function)
@@ -83,8 +83,8 @@ class Screenshot:
         from PyQt4.Qt import QBuffer, QIODevice
         import StringIO
         # there should only ever be a single instance of QApplication or else it crashes on some platforms
-        if Screengrab.qtAppInstance is None:
-          Screengrab.qtAppInstance = QApplication(sys.argv)
+        if Screenshot.qtAppInstance is None:
+          Screenshot.qtAppInstance = QApplication(sys.argv)
         buffer = QBuffer()
         buffer.open(QIODevice.ReadWrite)
         QPixmap.grabWindow(QApplication.desktop().winId()).save(buffer, 'png')
