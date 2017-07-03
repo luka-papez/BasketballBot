@@ -1,86 +1,24 @@
-import cv2
-import numpy as np
-from pymouse import PyMouse
-from time import sleep
-
-# TODO: reduce shot angle when the basket is near the edges
-# TODO: find the mathematical model
-# TODO: this function should take y difference into account
-def shot_vector(mouse_start, mouse_end):
-  mend = mouse_end - mouse_start
-  
-  mend[0] *= 0.7
-
-  return mend
-
-def perform_mouse_drag(mouse_start, mouse_end):
-  m = PyMouse()
-  
-  m_x, m_y = mouse_start
-  m_end_x, m_end_y = mouse_start + shot_vector(mouse_start, mouse_end)
-  
-  # focus browser
-  m.click(m_x, m_y)
-  
-  m.press(m_x, m_y)
-  sleep(0.1)
-  m.release(m_end_x, m_end_y)
-
-# http://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_imgproc/py_houghcircles/py_houghcircles.html
-def find_ball(img_screen, img_dbg = None):
-  img_screen_bin = cv2.cvtColor(img_screen, cv2.COLOR_RGB2GRAY)
-  # TODO: tweak parameters
-  circles = cv2.HoughCircles(img_screen_bin, cv2.HOUGH_GRADIENT, 2, 500, minRadius = 20, maxRadius = 200)
-  if circles is None:
-    print "Couldn't find circles"
-    return None
-    
-  circles = np.uint16(np.around(circles))
-  # no idea why this needs to be done
-  circles = circles[0] 
-
-  for i in circles:
-      # draw the outer circle
-      cv2.circle(img_dbg, (i[0], i[1]), i[2], (0, 255, 0), 2)
-      # draw the center of the circle
-      cv2.circle(img_dbg, (i[0], i[1]), 2, (0, 0, 255), 3)
-  
-  # if there are many found circles, sort descending according to circle radius and use the biggest one
-  if len(circles) > 1:
-    print "Found many circles, this shouldn't happen"
-    circles.sort(key=lambda circle: circle[2])
-
-  return circles[0][:-1]
-
-# http://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_imgproc/py_template_matching/py_template_matching.html
-img_basket = cv2.imread('basket.png')
-def find_basket(img_screen, img_dbg = None):
-  method = cv2.TM_CCOEFF_NORMED
-  res = cv2.matchTemplate(img_screen, img_basket, method)
-  min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)
-
-  h, w, _ = img_basket.shape
-  top_left = np.array(max_loc)
-  bottom_right = np.array((top_left[0] + w, top_left[1] + h))
-
-  if img_dbg is not None:
-    cv2.rectangle(img_dbg, tuple(top_left), tuple(bottom_right), 255, 2)
-  
-  return (top_left + bottom_right) / 2
-
-"""
-screengrab.py
-
-Created by Alex Snet on 2011-10-10.
-Copyright (c) 2011 CodeTeam. All rights reserved.
-"""
 import sys
 import os
 import Image
+import cv2
+import numpy as np
 
-# https://stackoverflow.com/questions/69645/take-a-screenshot-via-a-python-script-linux
-class Screengrab:
+""" Local TODOs """
+# TODO: duration of imports when imported locally? (eg. in function)
+# TODO: further refactor __init__
+
+class Screenshot:
+    """
+      Basic idea taken from https://stackoverflow.com/questions/69645/take-a-screenshot-via-a-python-script-linux
+      Modifications made:
+        1) Changed design to return the screenshot as OpenCV / numpy array instead of PIL image format.
+        2) Rewrote the horribly designed constructor (__init__)
+        3) Fixed the problem with segmentation faults if using Qt to take screenshots.
+    """
     def __init__(self):
+        # TODO: make a dict containing (libray, function) pairs and use eval() function to import the correct one
+        # TODO: duration of imports when imported locally? (eg. in function)
         imported = False
         
         if not imported:            
@@ -120,11 +58,11 @@ class Screengrab:
               imported = True
             
         if not imported:
-          print 'Cannot take screenshot on this computer'
+          print 'Screenshots cannot be taken on this computer'
           self.screen = None
         else:    
           # wrapper to return the image as OpenCV / numpy array
-          self.screen = lambda: cv2.cvtColor(np.array(self.screen_()), cv2.COLOR_RGB2BGR)
+          self.screenshot = lambda: cv2.cvtColor(np.array(self.screen_()), cv2.COLOR_RGB2BGR)
 
 
     def getScreenByGtk(self):
@@ -145,8 +83,8 @@ class Screengrab:
         from PyQt4.Qt import QBuffer, QIODevice
         import StringIO
         # there should only ever be a single instance of QApplication or else it crashes on some platforms
-        if Screengrab.qtAppInstance is None:
-          Screengrab.qtAppInstance = QApplication(sys.argv)
+        if Screenshot.qtAppInstance is None:
+          Screenshot.qtAppInstance = QApplication(sys.argv)
         buffer = QBuffer()
         buffer.open(QIODevice.ReadWrite)
         QPixmap.grabWindow(QApplication.desktop().winId()).save(buffer, 'png')
